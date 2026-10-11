@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "holdem-equity"
+version = "0.1.0"
+description = "Texas Hold'em equity calculator (exact + Monte Carlo) and a 169x169 preflop equity table"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["treys>=0.1.8", "numpy>=2.0", "pandas>=2.2", "matplotlib>=3.8", "pyarrow>=15"]
+
+[tool.setuptools]
+packages = ["holdem_equity"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

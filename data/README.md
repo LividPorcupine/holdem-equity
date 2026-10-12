@@ -9,6 +9,7 @@ Built by `python -m scripts.build_table` (40,000 Monte Carlo samples per cell, s
 | `preflop_equity.csv` | 169 × 169 | `eq[hero][villain]`: hero's equity (0–1). First column `hero` = row labels; header = villain labels. |
 | `preflop_equity_long.csv` | 28,561 rows | `hero, villain, equity, std_error, samples` — one row per cell. |
 | `preflop_equity.parquet` | 28,561 rows | Same as the long CSV (typed, smaller). |
+| `equity_vs_random.csv` | 169 rows | `hand, rank, equity, type, combos` � each class vs a uniformly random hand, derived from the table (`python -m scripts.eda`). |
 
 ## Labels and order
 Labels: pairs `AA`…`22`, suited `AKs`, offsuit `AKo` (higher rank first).

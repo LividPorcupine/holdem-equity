@@ -41,10 +41,11 @@ def _all_combos(cards: np.ndarray, k: int) -> np.ndarray:
     return flat.reshape(n, k)
 
 
-def _outcomes(hero, villain_cards: np.ndarray, boards: np.ndarray) -> np.ndarray:
+def showdown_outcomes(hero, villain_cards: np.ndarray, boards: np.ndarray) -> np.ndarray:
     """Hero's result per showdown: 1 win, 0.5 tie, 0 loss.
 
-    villain_cards: (n, 2), boards: (n, 5) - row i is one complete deal.
+    hero: (2,) for a fixed hand or (n, 2); villain_cards: (n, 2); boards: (n, 5).
+    Row i of the arrays is one complete deal.
     """
     n = len(boards)
     hero_rank = evaluate_batch(np.hstack([np.broadcast_to(np.asarray(hero, dtype=np.int8), (n, 2)), boards]))
@@ -79,7 +80,7 @@ def exact_equity(hero, villain=None, board=()) -> EquityResult:
     for v in villains:
         runouts = _all_combos(remaining_deck(hero, v, board), missing)
         boards = np.hstack([np.broadcast_to(np.array(board, dtype=np.int8), (len(runouts), len(board))), runouts])
-        totals = _tally(_outcomes(hero, np.broadcast_to(np.array(v, dtype=np.int8), (len(boards), 2)), boards), totals)
+        totals = _tally(showdown_outcomes(hero, np.broadcast_to(np.array(v, dtype=np.int8), (len(boards), 2)), boards), totals)
 
     wins, ties, n = totals.tolist()
     return EquityResult(equity=(wins + ties / 2) / n, win=wins / n, tie=ties / n, std_error=0.0, showdowns=n)
@@ -113,7 +114,7 @@ def monte_carlo_equity(hero, villain=None, board=(), samples=100_000, seed=None)
         else:
             villain_cards, runouts = np.broadcast_to(np.array(villain, dtype=np.int8), (n, 2)), deals
         boards = np.hstack([np.broadcast_to(board, (n, len(board))), runouts])
-        outcomes[start:start + n] = _outcomes(hero, villain_cards, boards)
+        outcomes[start:start + n] = showdown_outcomes(hero, villain_cards, boards)
 
     return EquityResult(
         equity=float(outcomes.mean()),

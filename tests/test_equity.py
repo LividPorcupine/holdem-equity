@@ -1,7 +1,9 @@
+from functools import cache
+
 import pytest
 
 from holdem_equity.cards import parse_cards as cards
-from holdem_equity.equity import exact_equity
+from holdem_equity.equity import exact_equity, monte_carlo_equity
 
 # (hero, villain, spec's sanity band for hero equity)
 KNOWN_MATCHUPS = [
@@ -11,9 +13,15 @@ KNOWN_MATCHUPS = [
 ]
 
 
+@cache
+def exact_preflop(hero, villain):
+    """Each exact preflop matchup takes ~3 s; compute it once per test run."""
+    return exact_equity(cards(hero), cards(villain))
+
+
 @pytest.mark.parametrize("hero, villain, band", KNOWN_MATCHUPS)
 def test_exact_preflop_known_values(hero, villain, band):
-    result = exact_equity(cards(hero), cards(villain))
+    result = exact_preflop(hero, villain)
     assert band[0] <= result.equity <= band[1]
     assert result.showdowns == 1_712_304  # C(48, 5) boards
     assert result.equity == pytest.approx(result.win + result.tie / 2)
@@ -44,3 +52,31 @@ def test_exact_refuses_huge_enumeration():
 def test_rejects_card_conflicts():
     with pytest.raises(ValueError):
         exact_equity(cards("AhKh"), cards("AhQd"))
+
+
+# --- Monte Carlo ---------------------------------------------------------
+
+@pytest.mark.parametrize("hero, villain, band", KNOWN_MATCHUPS)
+def test_monte_carlo_within_half_a_point_of_exact(hero, villain, band):
+    exact = exact_preflop(hero, villain).equity
+    estimate = monte_carlo_equity(cards(hero), cards(villain), samples=100_000, seed=1)
+    assert abs(estimate.equity - exact) < 0.005
+
+
+def test_monte_carlo_is_reproducible_with_a_seed():
+    a = monte_carlo_equity(cards("AhKh"), None, samples=5_000, seed=42)
+    b = monte_carlo_equity(cards("AhKh"), None, samples=5_000, seed=42)
+    assert a == b
+
+
+def test_monte_carlo_standard_error_shrinks_like_root_n():
+    small = monte_carlo_equity(cards("AhKh"), cards("QsQd"), samples=10_000, seed=0)
+    large = monte_carlo_equity(cards("AhKh"), cards("QsQd"), samples=160_000, seed=0)
+    assert large.std_error == pytest.approx(small.std_error / 4, rel=0.05)  # 16x samples -> 1/4 error
+
+
+def test_monte_carlo_vs_random_agrees_with_exact():
+    board = cards("Td9h2c")
+    exact = exact_equity(cards("AhKh"), None, board).equity
+    estimate = monte_carlo_equity(cards("AhKh"), None, board, samples=100_000, seed=7)
+    assert abs(estimate.equity - exact) < 4 * estimate.std_error

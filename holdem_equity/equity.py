@@ -83,3 +83,42 @@ def exact_equity(hero, villain=None, board=()) -> EquityResult:
 
     wins, ties, n = totals.tolist()
     return EquityResult(equity=(wins + ties / 2) / n, win=wins / n, tie=ties / n, std_error=0.0, showdowns=n)
+
+
+_MC_CHUNK = 100_000  # deals per numpy pass
+
+
+def monte_carlo_equity(hero, villain=None, board=(), samples=100_000, seed=None) -> EquityResult:
+    """Estimate equity from `samples` random deals of the unseen cards.
+
+    Each deal's outcome x is 1 / 0.5 / 0; equity = mean(x) and
+    std_error = std(x) / sqrt(samples), which shrinks like 1 / sqrt(samples).
+    The same seed always gives the same result.
+    """
+    _check_inputs(hero, villain, board)
+    if samples < 2:
+        raise ValueError("need at least 2 samples to estimate a standard error")
+    rng = np.random.default_rng(seed)
+    board = np.array(board, dtype=np.int8)
+    deck = remaining_deck(hero, villain or [], board.tolist()).astype(np.int8)
+    deal_size = (BOARD_SIZE - len(board)) + (2 if villain is None else 0)
+
+    outcomes = np.empty(samples)
+    for start in range(0, samples, _MC_CHUNK):
+        n = min(_MC_CHUNK, samples - start)
+        # Shuffle the unseen cards independently for each deal and take the top few.
+        deals = rng.permuted(np.tile(deck, (n, 1)), axis=1)[:, :deal_size]
+        if villain is None:
+            villain_cards, runouts = deals[:, :2], deals[:, 2:]
+        else:
+            villain_cards, runouts = np.broadcast_to(np.array(villain, dtype=np.int8), (n, 2)), deals
+        boards = np.hstack([np.broadcast_to(board, (n, len(board))), runouts])
+        outcomes[start:start + n] = _outcomes(hero, villain_cards, boards)
+
+    return EquityResult(
+        equity=float(outcomes.mean()),
+        win=float(np.mean(outcomes == 1.0)),
+        tie=float(np.mean(outcomes == 0.5)),
+        std_error=float(outcomes.std(ddof=1) / np.sqrt(samples)),
+        showdowns=samples,
+    )

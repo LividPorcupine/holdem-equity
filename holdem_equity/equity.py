@@ -15,7 +15,7 @@ from .cards import remaining_deck
 from .evaluate import evaluate_batch
 
 BOARD_SIZE = 5
-MAX_EXACT_SHOWDOWNS = 20_000_000  # ~20 s; preflop vs a random hand would be ~2.1e9
+MAX_EXACT_SHOWDOWNS = 20_000_000  # ~30 s; preflop vs a random hand would be ~2.1e9
 
 
 @dataclass(frozen=True)

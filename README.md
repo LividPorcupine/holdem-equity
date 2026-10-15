@@ -1,6 +1,6 @@
 # holdem-equity
 
-*Built with an AI coding agent. I chose the project, worked through every part of the code (walkthrough + quiz) and can explain it.*
+*Built with an AI coding agent. I chose the project, worked through every part of the code*
 
 Exact vs Monte Carlo poker equity: every one of the 1.7M possible boards is enumerated, and Monte Carlo estimates are measured against that exact answer to show the error falls like 1/√n. It's the same check you'd run on a Monte Carlo pricer or VaR model. It also builds a 169×169 preflop equity table and analyses it with pandas.
 

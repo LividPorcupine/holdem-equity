@@ -156,7 +156,7 @@ pytest finds every function named `test_*` and runs it. A plain `assert` is the 
 | `test_evaluate.py` | royal flush = rank 1, worst hand = 7462, batch == treys on 3,000 random 5/6/7-card hands |
 | `test_equity.py` | exact values within expected ranges and pinned to 1e-12, river win/split, showdown counts, refusal of huge enumerations, MC within 4 SE of exact, seeded reproducibility, SE falls 4× for 16× the samples, numpy-array hands accepted |
 | `test_preflop.py` | 169 classes, 6/4/12 combos, 1,326 distinct hands, combo-pair counts, mirror matchup ≈ 0.5, exact AKs vs QQ class average (0.460485) matched by Monte Carlo within 4 SE, and the acceptance checks on the shipped table (shape, symmetry, AA top ≈85%, 32o bottom ≈32%, 72o ≈35%, max SE < 0.3 pp). A direct 1M-sample simulation against a random hand must agree with the table for 32o, 72o, AA and 22 (\|z\| < 4) |
-| `test_eda.py` | the suited-premium explanation: suited hands make far more flushes and win most of them, and a flush is worth more to 32 than to AK |
+| `test_eda.py` | the suited-premium explanation: suited hands make far more flushes and have over 90% equity with them, and a flush is worth more to 32 than to AK |
 | `test_cli.py` | Monte Carlo, exact and random modes; bad input exits with code 2; `python -m holdem_equity` works |
 
 `@cache` (from `functools`) on `exact_preflop` means each 3-second exact matchup is computed once and shared by several tests.
@@ -219,7 +219,7 @@ That comes to about 0.02 pp per hand, which is why 72o − 32o = 2.26 ± 0.03 pp
 ---
 
 ## Explain it in 2 minutes
-> "I designed and validated a poker equity calculator in Python; it was built with an AI coding agent, and I checked every number and can explain all of the code. Equity is your expected share of the pot when everyone's all-in: P(win) plus half of P(tie).
+> "I chose this project and learned it end to end; it was built with an AI coding agent. It's a poker equity calculator in Python. Equity is your expected share of the pot when everyone's all-in: P(win) plus half of P(tie).
 >
 > There are two engines. The exact one enumerates every possible board. Preflop that's 1.7 million boards, and it runs in about 3 seconds because hand evaluation is vectorised with numpy. The evaluator uses treys' Cactus Kev lookup tables, where a hand is identified by the product of prime numbers assigned to its ranks, and looks up whole batches of hands at once. It's 8 times faster than calling treys one hand at a time, and it's tested to give identical answers.
 >

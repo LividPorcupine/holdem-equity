@@ -4,9 +4,9 @@ from scripts.eda import flush_split
 def test_suited_premium_comes_from_flushes():
     """The README's explanation of why 32 gains more from being suited than AK.
 
-    Suited hands make a flush about 3x as often and almost always win with it.
-    Each extra flush replaces a board where AK still wins about 65% but 32 only
-    about 32%, so the flush is worth roughly twice as much to 32.
+    Suited hands make a flush about 3x as often and have over 90% equity with it.
+    Each extra flush replaces a board where AK still has about 65% equity but 32
+    only about 32%, so the flush is worth roughly twice as much to 32.
     """
     ak_s, ak_o = flush_split("AKs", 200_000, seed=0), flush_split("AKo", 200_000, seed=1)
     s32, o32 = flush_split("32s", 200_000, seed=2), flush_split("32o", 200_000, seed=3)

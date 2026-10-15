@@ -1,6 +1,6 @@
 # holdem-equity
 
-*Built with an AI coding agent. I chose the project, checked every number and can explain all of the code (see [WALKTHROUGH.md](WALKTHROUGH.md)).*
+*Built with an AI coding agent. I chose the project, worked through every part of the code (walkthrough + quiz) and can explain it.*
 
 Exact vs Monte Carlo poker equity: every one of the 1.7M possible boards is enumerated, and Monte Carlo estimates are measured against that exact answer to show the error falls like 1/√n. It's the same check you'd run on a Monte Carlo pricer or VaR model. It also builds a 169×169 preflop equity table and analyses it with pandas.
 
@@ -33,9 +33,10 @@ The exact engine is fast because hand evaluation is vectorised with numpy. It is
 ### Findings
 Equities against a random hand come from the table, with standard errors propagated from its cells (about ±0.02 pp each).
 
-- **Best and worst hands:** AA is the best starting hand at 85.19% against a random hand, followed by KK at 82.39% and QQ at 79.92%. The worst is **32o at 32.32%**, not the famous 72o (34.58%, 5th from bottom). The 2.26 ± 0.03 pp gap is far beyond noise.- **Pairs:** pairs average 68.6% against a random hand. Even 22 is above 50% (50.3%).
+- **Best and worst hands:** AA is the best starting hand at 85.19% against a random hand, followed by KK at 82.39% and QQ at 79.92%. The worst is **32o at 32.32%**, not the famous 72o (34.58%, 5th from bottom). The 2.26 ± 0.03 pp gap is far beyond noise.
+- **Pairs:** pairs average 68.6% against a random hand. Even 22 is above 50% (50.3%).
 - **Suited vs offsuit:** suited hands average 50.9% and offsuit hands 48.1%.
-- **Suited premium:** being suited is worth **+2.75 pp on average**. It ranges from 1.77 ± 0.03 pp (AK) to 3.65 ± 0.03 pp (32), so weak hands gain the most. A direct simulation shows why (tested in `tests/test_eda.py`). AKs and 32s both make a flush 6.6% of the time, against 2.0% offsuit, and win 96% and 91% of those showdowns. Each extra flush replaces a board where AK would still have 65% equity but 32 only 32%, so the flush is worth about twice as much to 32.
+- **Suited premium:** being suited is worth **+2.75 pp on average**. It ranges from 1.77 ± 0.03 pp (AK) to 3.65 ± 0.03 pp (32), so weak hands gain the most. A direct simulation shows why (tested in `tests/test_eda.py`). AKs and 32s both make a flush 6.6% of the time, against 2.0% offsuit, and have 96% and 91% equity in those showdowns. Each extra flush replaces a board where AK would still have 65% equity but 32 only 32%, so the flush is worth about twice as much to 32.
 - **Checks that can fail:** a direct 1M-sample simulation against a random hand agrees with the table for 32o, 72o, AA and 22 (|z| ≤ 1.7, tested at |z| < 4). By contrast, the combo-weighted average over all 1,326 hands is exactly 0.5000, but that holds by construction (eq[j][i] = 1 − eq[i][j]), so it is not a test.
 - **Table accuracy:** a deal's outcome lies in [0, 1], so its variance is at most ¼ and the SE per cell is at most 0.5/√40,000 = **0.25 pp** before any sampling. That a-priori bound is why each cell uses 40,000 samples. The measured maximum was 0.249 pp.
 

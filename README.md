@@ -20,7 +20,7 @@ Suits matter, so a specific matchup can differ from its class average by several
 
 **Monte Carlo accuracy, in standard errors.** At 100k samples the SE is ≈ 0.16 pp, so a 95% interval is ±0.31 pp. The observed errors above are 0.6–2.1 SE: one of the three falls just outside 1.96 SE, which happens to about 1 run in 20. A single seed proves little, so the plot below averages 30 seeds per point.
 
-The exact engine is fast because hand evaluation is vectorised with numpy. It is 8× faster than calling `treys` one hand at a time and gives identical ranks; [scripts/benchmark.py](scripts/benchmark.py) reproduces this.
+The exact engine is fast because hand evaluation is vectorised with numpy. It is about 8× faster than calling `treys` one hand at a time (7.2–8.5× across runs) and gives identical ranks; [scripts/benchmark.py](scripts/benchmark.py) reproduces this.
 
 **Monte Carlo error falls like 1/√n.** Each point is the mean |MC − exact| over 30 seeds. The dashed lines are the theoretical √(2/π)·σ/√n.
 

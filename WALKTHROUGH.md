@@ -62,7 +62,7 @@ There are two ways to get the answer:
 
 The file has two entry points:
 - `evaluate(cards)` handles one hand. It converts our ints to treys ints and calls `treys.Evaluator`. It is simple and is the reference that the tests trust.
-- `evaluate_batch(hands)` handles an `(n, 7)` array of hands at once. It returns exactly the same answers about 8× faster, measured at 1.16M hands/s against 0.15M/s.
+- `evaluate_batch(hands)` handles an `(n, 7)` array of hands at once. It returns exactly the same answers about 8× faster, measured at 1.20M hands/s against 0.15M/s (`python -m scripts.benchmark` reproduces this).
 
 **How the batch version works (the clever part):** treys uses Cactus Kev's trick. Each rank is assigned a prime (2→2, 3→3, 4→5, …, A→41), and a 5-card hand is identified by the **product** of its five primes. Multiplication doesn't care about order, so `AKQJT` and `TJQKA` give the same number. Unique factorisation also means different rank multisets give different products. treys keeps two dictionaries mapping product → rank, one for flushes and one for everything else.
 
@@ -118,12 +118,14 @@ The file has two entry points:
 2. It deals a board using a *random-keys* trick. Every card gets a random key in [0, 1), and the 4 dealt cards get key 2.0 so they always sort last. The 5 smallest keys (`np.argpartition`) are then a uniform random 5-card board from the other 48 cards. `argpartition` is faster than a full sort because it only finds the smallest 5.
 3. It evaluates all samples with `showdown_outcomes` and returns the mean and the standard error.
 
+**`exact_class_vs_class(hero, villain)`** gives the exact class average with no sampling. Renaming the suits (say hearts ↔ spades everywhere) doesn't change anyone's equity, so `_suit_pattern` maps each combo pair to the smallest relabelling of its suits. Pairs with the same pattern have the same equity. Each pattern is enumerated once over all 1,712,304 boards and weighted by how many combo pairs share it. AKs vs QQ has 24 valid pairs but only 2 patterns: the QQ either holds a card of the AK's suit or it doesn't. `Counter` (from `collections`) counts how often each pattern occurs. A test compares this with Monte Carlo.
+
 **`build_table(samples=40_000, seed=2026)`:**
 - Only cells above the diagonal are simulated (14,196 of them). The mirror cell is filled as `eq[j][i] = 1 − eq[i][j]`: heads-up, the two players' shares of the pot always add to 1. That makes the table exactly symmetric by construction. Diagonal cells such as AA vs AA are exactly 0.5, because neither side has an edge.
 - `multiprocessing.Pool` spreads the rows across CPU cores. Each row gets its own seed from `np.random.SeedSequence(seed).spawn(169)`, so the results are identical no matter how many cores run it or in what order rows finish (`imap_unordered`).
 - It returns two pandas DataFrames, equity and standard error, labelled by class.
 
-**`equity_vs_random(table)`:** each class's equity against a random hand, worked out exactly from the table without new simulation. See [the weighting](#equity-vs-a-random-hand-from-the-table).
+**`equity_vs_random(table, se)`:** each class's equity against a random hand, worked out from the table without new simulation, plus its standard error. See [the weighting](#equity-vs-a-random-hand-from-the-table).
 
 **`to_long`** reshapes the 169×169 matrix into one row per cell (`DataFrame.stack()`) for the long CSV and parquet files.
 
@@ -137,20 +139,24 @@ The file has two entry points:
 ### `scripts/`: things you run once
 These are run as modules from the repo root, for example `python -m scripts.build_table`, so that `holdem_equity` can be imported.
 - **`build_table.py`** builds the table (323 s on 24 cores), writes `data/preflop_equity.csv`, `_long.csv` and `.parquet`, and prints the checks: max standard error, symmetry, and the extremes.
-- **`eda.py`** loads the table and does the analysis with pandas: the ranking against a random hand (also saved to `data/equity_vs_random.csv`), averages by type with `groupby`, the suited premium for each of the 78 rank pairs, and the heatmap. It prints the findings as markdown.
+- **`eda.py`** loads the table and its standard errors, then does the analysis with pandas: the ranking against a random hand (also saved to `data/equity_vs_random.csv`), averages by type with `groupby`, the suited premium for each of the 78 rank pairs, and the heatmap. It prints the findings as markdown, with a standard error on each derived number.
+  - `difference_se(a, b)` gives the SE of a difference such as 72o − 32o or AKs − AKo. The two rows share one simulated cell, and since eq[a][b] = 1 − eq[b][a] that cell pushes both rows' equities apart, so its variance is added, not cancelled.
+  - `flush_split(label, ...)` simulates a hand against random hands directly and splits the result by whether hero ends with a flush. It backs the explanation of the suited premium.
+- **`benchmark.py`** ranks the same random 7-card hands with `treys` one at a time and with `evaluate_batch`, checks that they agree and prints both speeds.
 - **`convergence.py`** handles 3 matchups × 9 sample sizes × 30 seeds and plots mean |MC − exact| on log-log axes against the theoretical curve. `_spread` nudges the end-of-line labels apart so they don't overlap.
 
 `if __name__ == "__main__": main()` means "run `main()` only when this file is run directly, not when it's imported". It is also *required* with `multiprocessing` on Windows: each worker process re-imports the script, and without that guard each worker would start its own pool.
 
-### `tests/` (54 tests, `pytest`)
+### `tests/` (61 tests, `pytest`)
 pytest finds every function named `test_*` and runs it. A plain `assert` is the whole assertion API. `@pytest.mark.parametrize` runs one test for each set of inputs, and `pytest.raises` checks that an exception is thrown.
 
 | File | Checks |
 |---|---|
 | `test_cards.py` | round-trips, bad input rejected, deck removal, card conflicts |
 | `test_evaluate.py` | royal flush = rank 1, worst hand = 7462, batch == treys on 3,000 random 5/6/7-card hands |
-| `test_equity.py` | exact values within expected ranges, river win/split, showdown counts, refusal of huge enumerations, MC within 0.5 pp of exact, seeded reproducibility, SE falls 4× for 16× the samples |
-| `test_preflop.py` | 169 classes, 6/4/12 combos, 1,326 distinct hands, combo-pair counts, mirror matchup ≈ 0.5, and the acceptance checks on the shipped table (shape, symmetry, AA top ≈85%, 32o bottom ≈32%, 72o ≈35%, max SE < 0.3 pp) |
+| `test_equity.py` | exact values within expected ranges and pinned to 1e-12, river win/split, showdown counts, refusal of huge enumerations, MC within 4 SE of exact, seeded reproducibility, SE falls 4× for 16× the samples, numpy-array hands accepted |
+| `test_preflop.py` | 169 classes, 6/4/12 combos, 1,326 distinct hands, combo-pair counts, mirror matchup ≈ 0.5, exact AKs vs QQ class average (0.460485) matched by Monte Carlo within 4 SE, and the acceptance checks on the shipped table (shape, symmetry, AA top ≈85%, 32o bottom ≈32%, 72o ≈35%, max SE < 0.3 pp). A direct 1M-sample simulation against a random hand must agree with the table for 32o, 72o, AA and 22 (\|z\| < 4) |
+| `test_eda.py` | the suited-premium explanation: suited hands make far more flushes and win most of them, and a flush is worth more to 32 than to AK |
 | `test_cli.py` | Monte Carlo, exact and random modes; bad input exits with code 2; `python -m holdem_equity` works |
 
 `@cache` (from `functools`) on `exact_preflop` means each 3-second exact matchup is computed once and shared by several tests.
@@ -177,14 +183,26 @@ Consequences:
 - By the central limit theorem x̄ − μ is approximately normal, and for a normal variable E|Z| = σ√(2/π). That gives the dashed theory curve **E|error| = √(2/π)·σ/√n**.
 - σ for one deal comes from the exact results: E[x²] = P(win)·1² + P(tie)·0.5², so σ² = P(win) + P(tie)/4 − μ². For AA vs KK, σ = 0.389. For the near coin-flips, σ = 0.498, close to the maximum of 0.5.
 
-**Samples per table cell:** σ ≤ 0.5, so SE ≤ 0.5/√n. For SE < 0.3 pp = 0.003 we need n > (0.5/0.003)² ≈ 27,778. The build uses **40,000**, so the worst case is 0.25 pp. The measured maximum was 0.249 pp.
+**Samples per table cell:** an outcome in [0, 1] has variance at most ¼, so σ ≤ 0.5 and SE ≤ 0.5/√n. This bound is known before any sampling. For SE < 0.3 pp = 0.003 we need n > (0.5/0.003)² ≈ 27,778. The build uses **40,000**, so the worst case is 0.25 pp. The measured maximum was 0.249 pp.
+
+**Reading a single run:** at 100k samples the SE is about 0.16 pp, so a 95% interval is ±1.96 SE ≈ ±0.31 pp. The README's three runs miss the exact value by 0.6, 2.1 and 1.8 SE. Being outside 1.96 SE once in three runs is unremarkable, because it happens about 1 run in 20. That is why the convergence plot averages 30 seeds.
 
 ### Equity vs a random hand, from the table
 Deal hero a random combo c of class i, and villain a random 2-card hand d from the 50 remaining cards. Every hero combo leaves exactly C(50,2) = 1,225 villain hands, so every *valid* (c, d) pair is equally likely. Class j therefore appears with probability proportional to `counts[i, j]`, the number of valid (c, d) pairs with c ∈ i and d ∈ j:
 
 > eq_vs_random(i) = Σⱼ counts[i,j] · eq[i,j] / Σⱼ counts[i,j]
 
-The weights matter. For example, AA has fewer valid pairs against other Ax hands, because the aces block them. Two checks back this up: a direct 1M-sample simulation of single combos against a random hand agrees with the formula within |z| ≤ 1.5, and the combo-weighted average over all 1,326 hands is exactly 0.5.
+The weights matter. For example, AA has fewer valid pairs against other Ax hands, because the aces block them.
+
+**Standard error.** Within row i, every cell comes from a separate simulation, so the cells are independent and their variances add with squared weights:
+
+> SE(i) = √(Σⱼ counts[i,j]² · se[i,j]²) / Σⱼ counts[i,j]
+
+That comes to about 0.02 pp per hand, which is why 72o − 32o = 2.26 ± 0.03 pp is clearly real.
+
+**The check that can fail:** simulate one combo directly against random hands (1M samples) and compare it with the formula as a z-score. For 32o, 72o, AA and 22 the |z| values are 1.4, 1.4, 1.7 and 0.9. The test fails if any reaches 4.
+
+**The check that can't fail:** the combo-weighted average over all 1,326 hands is exactly 0.5. That is true by construction (eq[j][i] = 1 − eq[i][j]): any table filled that way averages to 0.5, even a random one. So it is a consistency identity, not a test of the numbers.
 
 ---
 
@@ -192,19 +210,19 @@ The weights matter. For example, AA has fewer valid pairs against other Ax hands
 | Check | Result |
 |---|---|
 | Batch evaluator vs `treys.Evaluator` | identical on 200k random hands while developing, plus 9k in the tests |
-| A♥A♠ vs K♦K♣ exact vs a separate pure-treys loop over all 1,712,304 boards | identical: 0.8125548967940273 |
+| A♥A♠ vs K♦K♣ exact vs a plain `treys.Evaluator` loop over all 1,712,304 boards | identical: 0.8125548967940273. Both use treys' lookup tables, so this checks the vectorisation, not treys itself |
 | A♥A♠ vs K♦K♣ vs published figures | [PokerSkill](https://www.pokerskill.com/blog/aa-vs-kk/): aces win 81.1% with no shared suits, equity 81.3–82.6% depending on suits. Ours: win 81.06%, equity 81.26% |
-| AK vs 22 vs published figures | [PokerStrategy](https://www.pokerstrategy.com/strategy/1776): 47.35%. Ours: AKo vs 22 class average 47.40%. The specific A♥K♦ vs 2♠2♣ is 46.96%, because suits matter |
+| AK vs 22 vs published figures | [PokerStrategy](https://www.pokerstrategy.com/strategy/1776): 47.35%. Ours: AKo vs 22 exact class average 47.35% (`exact_class_vs_class`). The specific A♥K♦ vs 2♠2♣ is 46.96%, because suits matter |
 | Monte Carlo bias | 10 × 1M fresh-seed samples per matchup: pooled z-scores 0.98, 0.55, 0.45. No bias |
 | AA / 72o / 32o vs random | 85.19% / 34.58% / 32.32%, against expected values of ≈85 / ≈35 / ≈32. Each also matches a direct 1M-sample simulation within \|z\| ≤ 1.3 |
 
 ---
 
 ## Explain it in 2 minutes
-> "I built a poker equity calculator in Python. Equity is your expected share of the pot when everyone's all-in: P(win) plus half of P(tie).
+> "I designed and validated a poker equity calculator in Python; it was built with an AI coding agent, and I checked every number and can explain all of the code. Equity is your expected share of the pot when everyone's all-in: P(win) plus half of P(tie).
 >
-> There are two engines. The exact one enumerates every possible board. Preflop that's 1.7 million boards, and it runs in about 3 seconds because hand evaluation is vectorised with numpy. I took the treys library's Cactus Kev lookup tables, where a hand is identified by the product of prime numbers assigned to its ranks, and looked up whole batches of hands at once. It's 8 times faster than calling treys one hand at a time, and it's tested to give identical answers.
+> There are two engines. The exact one enumerates every possible board. Preflop that's 1.7 million boards, and it runs in about 3 seconds because hand evaluation is vectorised with numpy. The evaluator uses treys' Cactus Kev lookup tables, where a hand is identified by the product of prime numbers assigned to its ranks, and looks up whole batches of hands at once. It's 8 times faster than calling treys one hand at a time, and it's tested to give identical answers.
 >
-> The second engine is Monte Carlo: deal random boards and average. Its standard error is σ/√n, so 100 times the samples buys 10 times the accuracy. I showed that empirically with a log-log convergence plot that sits on the theoretical curve.
+> The second engine is Monte Carlo: deal random boards and average. Its standard error is σ/√n, so 100 times the samples buys 10 times the accuracy. The log-log convergence plot, averaged over 30 seeds, sits on the theoretical curve. That's the same validation you'd run on a Monte Carlo pricer: check it against a case with an exact answer.
 >
-> Then I used Monte Carlo to build the full 169-by-169 table of every starting-hand class against every other, 40,000 samples per cell so the standard error stays under 0.3 points, parallelised across cores with reproducible seeds. With pandas I found that AA is best at 85% against a random hand, the worst hand is actually 32 offsuit rather than 72, and being suited is worth about 2.75 points. That table feeds my next project, a push/fold solver using counterfactual regret minimisation."
+> Then Monte Carlo builds the full 169-by-169 table of every starting-hand class against every other. It uses 40,000 samples per cell, because an outcome between 0 and 1 caps the standard error at 0.25 points, and it runs in parallel across cores with reproducible seeds. With pandas: AA is best at 85% against a random hand, the worst hand is actually 32 offsuit rather than 72 (a 2.3-point gap with a standard error of 0.03), and being suited is worth about 2.75 points. A direct simulation agrees with the table within 2 standard errors. That table feeds the next project, a push/fold solver using counterfactual regret minimisation."

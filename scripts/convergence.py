@@ -63,7 +63,7 @@ def main():
         theory_pp = 100 * np.sqrt(2 / np.pi) * exact[label][1] / np.sqrt(n)
         ax.plot(n, theory_pp, color=color, lw=1, ls="--", alpha=0.8)
         ax.plot(n, observed, color=color, lw=2, marker="o", ms=5)
-        ax.annotate(label, (n[-1] * 1.15, y), va="center", fontsize=9, color=INK)
+        ax.annotate(label, (n[-1] * 1.15, y), va="center", fontsize=9, color=color)  # two lines end together
         print(f"{label}: mean |error| at n={SAMPLE_SIZES[-1]:,} = {observed[-1]:.4f} pp "
               f"(theory {theory_pp[-1]:.4f} pp)")
 

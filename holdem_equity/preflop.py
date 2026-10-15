@@ -11,14 +11,15 @@ Classes are listed in the standard 13x13 grid order (row-major, A first):
 the diagonal holds pairs, above it suited hands, below it offsuit hands.
 """
 
-from itertools import combinations
+from collections import Counter
+from itertools import combinations, permutations
 from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
 
 from .cards import RANKS
-from .equity import BOARD_SIZE, showdown_outcomes
+from .equity import BOARD_SIZE, exact_equity, showdown_outcomes
 
 RANKS_DESC = RANKS[::-1]  # 'AKQJT98765432'
 GRID = len(RANKS_DESC)
@@ -83,6 +84,28 @@ def class_vs_class(hero: str, villain: str, samples: int, rng: np.random.Generat
     return float(x.mean()), float(x.std(ddof=1) / np.sqrt(samples))
 
 
+def _suit_pattern(hero_cards, villain_cards) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Smallest relabelling of the 4 suits, as sorted (hero, villain) card tuples.
+
+    Equity doesn't change when suits are renamed, so deals with the same pattern tie.
+    """
+    return min(
+        tuple(tuple(sorted(c // 4 * 4 + perm[c % 4] for c in cards.tolist())) for cards in (hero_cards, villain_cards))
+        for perm in permutations(range(4))
+    )
+
+
+def exact_class_vs_class(hero: str, villain: str) -> float:
+    """Exact equity of class `hero` vs class `villain`, averaged over all non-conflicting combo pairs.
+
+    Each distinct suit pattern is enumerated once (every board) and weighted by how
+    many combo pairs share it: e.g. AKs vs QQ has 24 pairs but only 2 patterns.
+    """
+    patterns = Counter(_suit_pattern(COMBOS[hero][a], COMBOS[villain][b]) for a, b in _valid_pairs(hero, villain))
+    total = sum(patterns.values())
+    return sum(n * exact_equity(list(h), list(v)).equity for (h, v), n in patterns.items()) / total
+
+
 def _row(task):
     """Cells (i, j) for j > i: one unit of parallel work."""
     i, samples, seed_seq = task
@@ -117,17 +140,23 @@ def combo_pair_counts() -> np.ndarray:
     return np.array([[np.count_nonzero((a[:, None] & b[None, :]) == 0) for b in masks] for a in masks])
 
 
-def equity_vs_random(table: pd.DataFrame) -> pd.Series:
+def equity_vs_random(table: pd.DataFrame, se: pd.DataFrame) -> pd.DataFrame:
     """Each class's equity against a uniformly random opponent hand, from the table.
 
     Dealing hero a random combo of class i and villain a random hand from the
     other 50 cards makes every non-conflicting (hero combo, villain combo) pair
-    equally likely, so class j appears with weight counts[i, j]:
-        eq_vs_random(i) = sum_j counts[i, j] * eq[i, j] / sum_j counts[i, j]
+    equally likely, so class j appears with weight w_ij = counts[i, j]:
+        eq_vs_random(i) = sum_j w_ij * eq[i, j] / sum_j w_ij
+    Cells within one row come from independent simulations, so the standard error is
+        sqrt(sum_j w_ij^2 * se[i, j]^2) / sum_j w_ij
+    Returns columns `equity` and `std_error`, indexed by class.
     """
     counts = combo_pair_counts()
-    values = (counts * table.to_numpy()).sum(axis=1) / counts.sum(axis=1)
-    return pd.Series(values, index=table.index, name="equity_vs_random")
+    weight = counts.sum(axis=1)
+    return pd.DataFrame({
+        "equity": (counts * table.to_numpy()).sum(axis=1) / weight,
+        "std_error": np.sqrt((counts ** 2 * se.to_numpy() ** 2).sum(axis=1)) / weight,
+    }, index=table.index)
 
 
 def to_long(eq: pd.DataFrame, se: pd.DataFrame, samples: int) -> pd.DataFrame:

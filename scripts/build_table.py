@@ -33,7 +33,7 @@ def main():
     long.round(6).to_csv(DATA / "preflop_equity_long.csv", index=False)
     long.to_parquet(DATA / "preflop_equity.parquet", index=False)
 
-    vs_random = equity_vs_random(eq).sort_values(ascending=False)
+    vs_random = equity_vs_random(eq, se).equity.sort_values(ascending=False)
     off_diagonal = long[long.hero != long.villain]
     print(f"built in {elapsed:.0f} s with {args.samples:,} samples per cell, seed {args.seed}")
     print(f"max std error {100 * off_diagonal.std_error.max():.3f} pp, "

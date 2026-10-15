@@ -4,8 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from holdem_equity.equity import monte_carlo_equity
 from holdem_equity.preflop import (
-    COMBOS, HAND_CLASSES, class_combos, class_vs_class, combo_pair_counts, equity_vs_random, grid_label,
+    COMBOS, HAND_CLASSES, class_combos, class_vs_class, combo_pair_counts, equity_vs_random, exact_class_vs_class,
+    grid_label,
 )
 
 DATA = Path(__file__).resolve().parent.parent / "data"
@@ -42,9 +44,17 @@ def test_mirror_matchup_is_a_coin_flip():
     assert abs(equity - 0.5) < 4 * se
 
 
+def test_class_vs_class_matches_exact():
+    exact = exact_class_vs_class("AKs", "QQ")  # 2 suit patterns, ~6 s
+    assert exact == pytest.approx(0.460485, abs=1e-6)
+    equity, se = class_vs_class("AKs", "QQ", 40_000, np.random.default_rng(0))
+    assert abs(equity - exact) < 4 * se
+
+
 def test_equity_vs_random_of_flat_table_is_half():
     flat = pd.DataFrame(0.5, index=HAND_CLASSES, columns=HAND_CLASSES)
-    assert np.allclose(equity_vs_random(flat), 0.5)
+    vs_random = equity_vs_random(flat, flat * 0)
+    assert np.allclose(vs_random.equity, 0.5) and (vs_random.std_error == 0).all()
 
 
 # --- the shipped table (acceptance checks) --------------------------------
@@ -52,6 +62,13 @@ def test_equity_vs_random_of_flat_table_is_half():
 @pytest.fixture(scope="module")
 def table():
     return pd.read_csv(DATA / "preflop_equity.csv", index_col="hero")
+
+
+@pytest.fixture(scope="module")
+def vs_random(table):
+    long = pd.read_parquet(DATA / "preflop_equity.parquet")
+    se = long.pivot(index="hero", columns="villain", values="std_error").loc[HAND_CLASSES, HAND_CLASSES]
+    return equity_vs_random(table, se)
 
 
 def test_table_shape_and_labels(table):
@@ -64,11 +81,20 @@ def test_table_is_symmetric(table):
     assert np.abs(eq + eq.T - 1).max() <= 0.01
 
 
-def test_vs_random_extremes(table):
-    vs_random = equity_vs_random(table)
-    assert vs_random.idxmax() == "AA" and 0.845 < vs_random["AA"] < 0.86
-    assert vs_random.idxmin() == "32o" and 0.315 < vs_random["32o"] < 0.33
-    assert 0.34 < vs_random["72o"] < 0.355
+def test_vs_random_extremes(vs_random):
+    eq = vs_random.equity
+    assert eq.idxmax() == "AA" and 0.845 < eq["AA"] < 0.86
+    assert eq.idxmin() == "32o" and 0.315 < eq["32o"] < 0.33
+    assert 0.34 < eq["72o"] < 0.355
+
+
+@pytest.mark.parametrize("hand", ["32o", "72o", "AA", "22"])
+def test_vs_random_matches_direct_simulation(vs_random, hand):
+    # Independent of the table: simulate one combo (all combos of a class are
+    # equivalent preflop) against a random hand, and compare as a z-score.
+    direct = monte_carlo_equity(COMBOS[hand][0].tolist(), None, samples=1_000_000, seed=11)
+    z = (direct.equity - vs_random.equity[hand]) / np.hypot(direct.std_error, vs_random.std_error[hand])
+    assert abs(z) < 4
 
 
 def test_long_format_and_parquet_agree():

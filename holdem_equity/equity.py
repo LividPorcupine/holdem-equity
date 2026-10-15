@@ -63,7 +63,7 @@ def exact_equity(hero, villain=None, board=()) -> EquityResult:
     _check_inputs(hero, villain, board)
     board = list(board)
     missing = BOARD_SIZE - len(board)
-    deck = remaining_deck(hero, villain or [], board)
+    deck = remaining_deck(hero, [] if villain is None else villain, board)
 
     if villain is None:
         showdowns = comb(len(deck), 2) * comb(len(deck) - 2, missing)
@@ -101,7 +101,7 @@ def monte_carlo_equity(hero, villain=None, board=(), samples=100_000, seed=None)
         raise ValueError("need at least 2 samples to estimate a standard error")
     rng = np.random.default_rng(seed)
     board = np.array(board, dtype=np.int8)
-    deck = remaining_deck(hero, villain or [], board.tolist()).astype(np.int8)
+    deck = remaining_deck(hero, [] if villain is None else villain, board.tolist()).astype(np.int8)
     deal_size = (BOARD_SIZE - len(board)) + (2 if villain is None else 0)
 
     outcomes = np.empty(samples)

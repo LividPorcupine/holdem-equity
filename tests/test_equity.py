@@ -1,5 +1,6 @@
 from functools import cache
 
+import numpy as np
 import pytest
 
 from holdem_equity.cards import parse_cards as cards
@@ -80,3 +81,10 @@ def test_monte_carlo_vs_random_agrees_with_exact():
     exact = exact_equity(cards("AhKh"), None, board).equity
     estimate = monte_carlo_equity(cards("AhKh"), None, board, samples=100_000, seed=7)
     assert abs(estimate.equity - exact) < 4 * estimate.std_error
+
+
+def test_accepts_numpy_array_hands():
+    hero, villain, board = np.array(cards("AhKh")), np.array(cards("QsQd")), np.array(cards("Td9h2c3s"))
+    assert exact_equity(hero, villain, board) == exact_equity(cards("AhKh"), cards("QsQd"), cards("Td9h2c3s"))
+    assert monte_carlo_equity(hero, villain, samples=1_000, seed=3) == \
+        monte_carlo_equity(cards("AhKh"), cards("QsQd"), samples=1_000, seed=3)

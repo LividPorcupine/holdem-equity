@@ -16,7 +16,7 @@ Exact vs Monte Carlo poker equity: every one of the 1.7M possible boards is enum
 | A♥K♥ vs Q♠Q♦ | **46.21%** | 45.88% ± 0.16 | −0.33 pp = −2.1 SE | AKs vs QQ **46.05%** |
 | A♥K♦ vs 2♠2♣ | **46.96%** | 46.68% ± 0.16 | −0.28 pp = −1.8 SE | AKo vs 22 **47.35%** |
 
-Suits matter. If the kings share a suit with the aces, any flush they make in that suit loses to the ace-high flush. A♥A♠ vs K♦K♣ shares no suit, so it is the kings' best case: the aces get 81.26%, against 82.64% when both suits are shared. That is why the specific matchup sits below the AA vs KK average.
+Suits matter, so a specific matchup can differ from its class average by several tenths of a point.
 
 **Monte Carlo accuracy, in standard errors.** At 100k samples the SE is ≈ 0.16 pp, so a 95% interval is ±0.31 pp. The observed errors above are 0.6–2.1 SE: one of the three falls just outside 1.96 SE, which happens to about 1 run in 20. A single seed proves little, so the plot below averages 30 seeds per point.
 
@@ -33,8 +33,7 @@ The exact engine is fast because hand evaluation is vectorised with numpy. It is
 ### Findings
 Equities against a random hand come from the table, with standard errors propagated from its cells (about ±0.02 pp each).
 
-- **Best and worst hands:** AA is the best starting hand at 85.19% against a random hand, followed by KK at 82.39% and QQ at 79.92%. The worst is **32o at 32.32%**, not the famous 72o (34.58%, 5th from bottom). The 2.26 ± 0.03 pp gap is far beyond noise. Both of 32o's cards are the lowest ranks, so its pairs and high cards lose to almost everything. Its extra straight chances (A-5, 2-6) don't make up for that, while 72o's 7 wins more high-card and pair showdowns.
-- **Pairs:** pairs average 68.6% against a random hand. Even 22 is above 50% (50.3%).
+- **Best and worst hands:** AA is the best starting hand at 85.19% against a random hand, followed by KK at 82.39% and QQ at 79.92%. The worst is **32o at 32.32%**, not the famous 72o (34.58%, 5th from bottom). The 2.26 ± 0.03 pp gap is far beyond noise.- **Pairs:** pairs average 68.6% against a random hand. Even 22 is above 50% (50.3%).
 - **Suited vs offsuit:** suited hands average 50.9% and offsuit hands 48.1%.
 - **Suited premium:** being suited is worth **+2.75 pp on average**. It ranges from 1.77 ± 0.03 pp (AK) to 3.65 ± 0.03 pp (32), so weak hands gain the most. A direct simulation shows why (tested in `tests/test_eda.py`). AKs and 32s both make a flush 6.6% of the time, against 2.0% offsuit, and win 96% and 91% of those showdowns. Each extra flush replaces a board where AK would still have 65% equity but 32 only 32%, so the flush is worth about twice as much to 32.
 - **Checks that can fail:** a direct 1M-sample simulation against a random hand agrees with the table for 32o, 72o, AA and 22 (|z| ≤ 1.7, tested at |z| < 4). By contrast, the combo-weighted average over all 1,326 hands is exactly 0.5000, but that holds by construction (eq[j][i] = 1 − eq[i][j]), so it is not a test.

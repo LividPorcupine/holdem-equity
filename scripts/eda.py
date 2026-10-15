@@ -144,6 +144,7 @@ def _heatmap(eq: pd.Series):
     ax.set_title("Preflop equity vs a random hand (%)   ·   suited above the diagonal, offsuit below",
                  loc="left", fontsize=10, color=INK)
     bar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.02)
+    bar.set_label("equity vs random hand (%)", color=MUTED, fontsize=9)
     bar.outline.set_visible(False)
     bar.ax.tick_params(colors=MUTED, labelsize=8)
     fig.tight_layout()

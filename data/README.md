@@ -9,7 +9,7 @@ Built by `python -m scripts.build_table` (40,000 Monte Carlo samples per cell, s
 | `preflop_equity.csv` | 169 × 169 | `eq[hero][villain]`: hero's equity (0–1). First column `hero` = row labels; header = villain labels. |
 | `preflop_equity_long.csv` | 28,561 rows | `hero, villain, equity, std_error, samples` — one row per cell. |
 | `preflop_equity.parquet` | 28,561 rows | Same as the long CSV (typed, smaller). |
-| `equity_vs_random.csv` | 169 rows | `hand, rank, equity, type, combos` � each class vs a uniformly random hand, derived from the table (`python -m scripts.eda`). |
+| `equity_vs_random.csv` | 169 rows | `hand, rank, equity, std_error, type, combos` — each class vs a uniformly random hand, derived from the table (`python -m scripts.eda`); `std_error` is propagated from the cells' SEs. |
 
 ## Labels and order
 Labels: pairs `AA`…`22`, suited `AKs`, offsuit `AKo` (higher rank first).
@@ -23,7 +23,9 @@ above it = suited, below it = offsuit (`holdem_equity.preflop.HAND_CLASSES`).
   then a uniform board from the remaining 48 cards.
 - Only cells above the diagonal are simulated. `eq[j][i] = 1 − eq[i][j]` (same samples), so
   the table is exactly symmetric. Diagonal cells (e.g. AA vs AA) are 0.5 by symmetry (`samples = 0`).
-- Standard error per cell: max 0.249 pp, mean 0.229 pp.
+- Standard error per cell: max 0.249 pp, mean 0.229 pp. A deal's outcome lies in [0, 1], so its
+  variance is at most 1/4 and SE ≤ 0.5/√40,000 = 0.25 pp before any sampling. That a-priori bound is
+  why 40,000 samples per cell were chosen (the spec asks for < 0.3 pp).
 
 ## Loading
 ```python

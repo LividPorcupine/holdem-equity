@@ -62,15 +62,17 @@ def main():
     for (_, _, label), color, observed, y in zip(MATCHUPS, COLORS, mean_error_pp, label_y):
         theory_pp = 100 * np.sqrt(2 / np.pi) * exact[label][1] / np.sqrt(n)
         ax.plot(n, theory_pp, color=color, lw=1, ls="--", alpha=0.8)
-        ax.plot(n, observed, color=color, lw=2, marker="o", ms=5, label=label)
+        ax.plot(n, observed, color=color, lw=2, marker="o", ms=5)
         ax.annotate(label, (n[-1] * 1.15, y), va="center", fontsize=9, color=INK)
         print(f"{label}: mean |error| at n={SAMPLE_SIZES[-1]:,} = {observed[-1]:.4f} pp "
               f"(theory {theory_pp[-1]:.4f} pp)")
 
     ax.set(xscale="log", yscale="log", xlabel="Monte Carlo samples (n)",
            ylabel="mean |MC − exact| (percentage points)")
-    ax.set_title(f"Monte Carlo error falls like 1/√n  ({SEEDS} seeds per point)", loc="left", color=INK)
-    ax.plot([], [], color=MUTED, lw=1, ls="--", label="theory: √(2/π)·σ/√n")
+    ax.set_title("100× more samples → 10× smaller error", loc="left", color=INK)
+    # Matchups are labelled at the line ends, so the legend only explains the two line styles.
+    ax.plot([], [], color=MUTED, lw=2, marker="o", ms=5, label=f"observed: mean |MC − exact| over {SEEDS} seeds")
+    ax.plot([], [], color=MUTED, lw=1, ls="--", label="theory: √(2/π)·σ/√n, one per matchup")
     ax.legend(frameon=False, fontsize=9, labelcolor=INK)
     ax.grid(True, which="major", color=GRID, lw=0.6)
     ax.set_xlim(right=n[-1] * 3)  # room for the direct labels

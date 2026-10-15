@@ -6,11 +6,11 @@ import pytest
 from holdem_equity.cards import parse_cards as cards
 from holdem_equity.equity import exact_equity, monte_carlo_equity
 
-# (hero, villain, spec's sanity band for hero equity)
+# (hero, villain, spec's sanity band for hero equity, exact value over all C(48, 5) boards)
 KNOWN_MATCHUPS = [
-    ("AhAs", "KdKc", (0.81, 0.83)),  # AA vs KK
-    ("AhKh", "QsQd", (0.45, 0.47)),  # AKs vs QQ
-    ("AhKd", "2s2c", (0.46, 0.48)),  # AKo vs 22
+    ("AhAs", "KdKc", (0.81, 0.83), 0.8125548967940273),  # AA vs KK
+    ("AhKh", "QsQd", (0.45, 0.47), 0.46214457245909607),  # AKs vs QQ
+    ("AhKd", "2s2c", (0.46, 0.48), 0.4695965202440688),  # AKo vs 22
 ]
 
 
@@ -20,10 +20,11 @@ def exact_preflop(hero, villain):
     return exact_equity(cards(hero), cards(villain))
 
 
-@pytest.mark.parametrize("hero, villain, band", KNOWN_MATCHUPS)
-def test_exact_preflop_known_values(hero, villain, band):
+@pytest.mark.parametrize("hero, villain, band, value", KNOWN_MATCHUPS)
+def test_exact_preflop_known_values(hero, villain, band, value):
     result = exact_preflop(hero, villain)
     assert band[0] <= result.equity <= band[1]
+    assert result.equity == pytest.approx(value, abs=1e-12)
     assert result.showdowns == 1_712_304  # C(48, 5) boards
     assert result.equity == pytest.approx(result.win + result.tie / 2)
 
@@ -57,11 +58,11 @@ def test_rejects_card_conflicts():
 
 # --- Monte Carlo ---------------------------------------------------------
 
-@pytest.mark.parametrize("hero, villain, band", KNOWN_MATCHUPS)
-def test_monte_carlo_within_half_a_point_of_exact(hero, villain, band):
+@pytest.mark.parametrize("hero, villain, band, value", KNOWN_MATCHUPS)
+def test_monte_carlo_within_4_standard_errors_of_exact(hero, villain, band, value):
     exact = exact_preflop(hero, villain).equity
     estimate = monte_carlo_equity(cards(hero), cards(villain), samples=100_000, seed=1)
-    assert abs(estimate.equity - exact) < 0.005
+    assert abs(estimate.equity - exact) < 4 * estimate.std_error
 
 
 def test_monte_carlo_is_reproducible_with_a_seed():
